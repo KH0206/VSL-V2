@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Webapp
 
-## Getting Started
+Next.js (App Router) + Supabase starter with authentication, user management,
+custom stored-procedure calls, AG Grid tables, Recharts, and test stubs.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 + TypeScript + Tailwind CSS
+- Supabase (Postgres + Auth) via `@supabase/ssr`
+- shadcn/ui components
+- AG Grid Community (data tables)
+- Recharts (charts)
+- Vitest + Testing Library (tests)
+
+## 1. Create a Supabase project
+
+1. Go to [supabase.com](https://supabase.com) and create a new project (free tier is fine).
+2. In the project dashboard, go to **Project Settings -> API** and copy:
+   - Project URL
+   - `anon` public key
+
+## 2. Configure environment variables
+
+Copy the example file and fill in your values:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 3. Run the database migrations
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The SQL files in `supabase/migrations/` set up:
 
-## Learn More
+- `0001_profiles.sql` — a `profiles` table (linked to `auth.users`) with role-based RLS, and a trigger that creates a profile row whenever a new user signs up.
+- `0002_orders.sql` — an example `orders` table with seed data, used by the Reports page.
+- `0003_report_by_category.sql` — an example **Postgres function** (the Postgres equivalent of a stored procedure), called from the app via `supabase.rpc('report_totals_by_category')`. Use this as the pattern for any custom stored procedures you need.
 
-To learn more about Next.js, take a look at the following resources:
+Run them either via the Supabase SQL Editor (paste each file's contents in order), or with the Supabase CLI:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx supabase login
+npx supabase link --project-ref your-project-ref
+npx supabase db push
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 4. Install dependencies and run
 
-## Deploy on Vercel
+```bash
+npm install
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Visit `http://localhost:3000`, sign up for an account, and you'll be redirected
+to `/dashboard`. `/users` shows the AG Grid user list (from `profiles`), and
+`/reports` shows an AG Grid table + Recharts bar chart driven by the
+`report_totals_by_category` stored procedure, with CSV export.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 5. Run tests
+
+```bash
+npm test
+```
+
+## Calling your own stored procedures
+
+1. Add a new Postgres function in a migration file under `supabase/migrations/`, following the pattern in `0003_report_by_category.sql`.
+2. Call it from a Server Component or Server Action with:
+
+```ts
+const { data, error } = await supabase.rpc("your_function_name", { param1: value });
+```
+
+## Project structure
+
+```
+src/
+  app/
+    (app)/            # authenticated routes (layout checks session)
+      dashboard/
+      users/
+      reports/
+    login/
+    signup/
+    logout/
+  components/
+    ui/               # shadcn/ui components
+    data-grid.tsx      # shared AG Grid wrapper
+    nav-bar.tsx
+  lib/
+    supabase/         # client.ts (browser), server.ts (server), middleware.ts
+supabase/
+  migrations/         # SQL schema, RLS policies, stored procedures, seed data
+```
