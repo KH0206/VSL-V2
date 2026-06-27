@@ -10,7 +10,8 @@ describe("Sidebar", () => {
 
   it("renders the main nav links", () => {
     render(<Sidebar email="test@example.com" />);
+    expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Table Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit" })).toBeInTheDocument();
   });
 });

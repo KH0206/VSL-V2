@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import type { AgGridReact } from "ag-grid-react";
+import { ActionBar } from "@/components/action-bar";
 import { DataGrid } from "@/components/data-grid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,10 +43,10 @@ function ActionsCell({ data }: ICellRendererParams<Project>) {
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex items-center gap-0.5 pt-0.5">
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger render={<Button variant="outline" size="sm" />}>
-          Edit
+        <DialogTrigger render={<Button variant="ghost" size="icon-xs" aria-label="Edit row" />}>
+          <Pencil className="size-3.5" />
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
@@ -65,19 +68,25 @@ function ActionsCell({ data }: ICellRendererParams<Project>) {
         </DialogContent>
       </Dialog>
       <Button
-        variant="destructive"
-        size="sm"
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Delete row"
         onClick={handleDelete}
         disabled={pending}
       >
-        Delete
+        <Trash2 className="size-3.5 text-destructive" />
       </Button>
     </div>
   );
 }
 
-function NewProjectDialog() {
-  const [open, setOpen] = useState(false);
+function NewProjectDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [name, setName] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -85,13 +94,12 @@ function NewProjectDialog() {
     startTransition(async () => {
       await createProject(name);
       setName("");
-      setOpen(false);
+      onOpenChange(false);
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>New project</DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
@@ -115,30 +123,70 @@ function NewProjectDialog() {
   );
 }
 
-const columnDefs: ColDef<Project>[] = [
-  { field: "project_name", headerName: "Name", flex: 2 },
-  {
-    field: "created_at",
-    headerName: "Created",
-    flex: 1,
-    valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleDateString() : ""),
-  },
-  {
-    headerName: "Actions",
-    flex: 1,
-    cellRenderer: ActionsCell,
-    sortable: false,
-    filter: false,
-  },
-];
-
 export function ProjectsGrid({ rows }: { rows: Project[] }) {
+  const [selectMode, setSelectMode] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+  const [, startTransition] = useTransition();
+  const gridRef = useRef<AgGridReact<Project>>(null);
+
+  function handleDeleteSelected() {
+    const selected = gridRef.current?.api.getSelectedRows() ?? [];
+    if (selected.length === 0) return;
+
+    startTransition(async () => {
+      await Promise.all(selected.map((row) => deleteProject(row.id)));
+    });
+  }
+
+  const columnDefs = useMemo<ColDef<Project>[]>(
+    () => [
+      {
+        headerName: "",
+        width: 74,
+        maxWidth: 74,
+        pinned: "left",
+        lockPinned: true,
+        sortable: false,
+        filter: false,
+        suppressMovable: true,
+        checkboxSelection: selectMode,
+        headerCheckboxSelection: selectMode,
+        cellRenderer: ActionsCell,
+      },
+      { field: "project_name", headerName: "Name", flex: 2 },
+      {
+        field: "created_at",
+        headerName: "Created",
+        flex: 1,
+        valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleDateString() : ""),
+      },
+    ],
+    [selectMode],
+  );
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
-        <NewProjectDialog />
-      </div>
-      <DataGrid<Project> rowData={rows} columnDefs={columnDefs} />
+      <ActionBar
+        breadcrumbs={[{ label: "Home", href: "/dashboard" }, { label: "Projects" }]}
+        selectActive={selectMode}
+        onSelectToggle={() => setSelectMode((v) => !v)}
+        doItems={[
+          { label: "Delete Selected", onClick: handleDeleteSelected },
+          {
+            label: "Report Selected",
+            onClick: () => gridRef.current?.api.exportDataAsCsv({ onlySelected: true }),
+          },
+        ]}
+        onNew={() => setNewOpen(true)}
+        newLabel="New"
+      />
+      <DataGrid<Project>
+        ref={gridRef}
+        rowData={rows}
+        columnDefs={columnDefs}
+        rowSelection={selectMode ? "multiple" : "single"}
+      />
+      <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} />
     </div>
   );
 }

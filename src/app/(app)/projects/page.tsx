@@ -16,7 +16,6 @@ export default async function ProjectsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Projects</h1>
       {error && <p className="text-sm text-destructive">{error.message}</p>}
       <ProjectsGrid rows={projects ?? []} />
     </div>

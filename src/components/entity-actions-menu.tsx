@@ -20,9 +20,11 @@ export type EntityPanel = {
 export function EntityActionsMenu({
   panels,
   triggerLabel = "Edit",
+  triggerContent,
 }: {
   panels: EntityPanel[];
   triggerLabel?: string;
+  triggerContent?: ReactNode;
 }) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const active = panels.find((p) => p.key === openKey);
@@ -30,8 +32,16 @@ export function EntityActionsMenu({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-          {triggerLabel}
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              size={triggerContent ? "icon-xs" : "sm"}
+              aria-label={triggerLabel}
+            />
+          }
+        >
+          {triggerContent ?? triggerLabel}
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           {panels.map((p) => (

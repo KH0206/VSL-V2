@@ -13,6 +13,9 @@ import {
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 type GridColumnDef<T> = ColDef<T> | ColGroupDef<T>;
+type DataGridProps<T> = AgGridReactProps<T> & {
+  enableFilters?: boolean;
+};
 
 function hideIdColumns<T>(columnDefs?: GridColumnDef<T>[]): GridColumnDef<T>[] | undefined {
   return columnDefs?.map((columnDef) => {
@@ -32,10 +35,23 @@ function hideIdColumns<T>(columnDefs?: GridColumnDef<T>[]): GridColumnDef<T>[] |
 }
 
 function DataGridInner<T>(
-  props: AgGridReactProps<T>,
+  props: DataGridProps<T>,
   ref: React.Ref<AgGridReact<T>>,
 ) {
-  const columnDefs = hideIdColumns(props.columnDefs as GridColumnDef<T>[] | undefined);
+  const {
+    enableFilters = false,
+    columnDefs: rawColumnDefs,
+    defaultColDef,
+    ...agGridProps
+  } = props;
+  const columnDefs = hideIdColumns(rawColumnDefs as GridColumnDef<T>[] | undefined);
+  const mergedDefaultColDef = enableFilters
+    ? {
+        ...defaultColDef,
+        filter: true,
+        floatingFilter: true,
+      }
+    : defaultColDef;
 
   return (
     <div style={{ height: 420, width: "100%" }}>
@@ -44,7 +60,8 @@ function DataGridInner<T>(
         theme={themeQuartz}
         pagination
         paginationPageSize={100}
-        {...props}
+        {...agGridProps}
+        defaultColDef={mergedDefaultColDef}
         columnDefs={columnDefs}
       />
     </div>
@@ -52,5 +69,5 @@ function DataGridInner<T>(
 }
 
 export const DataGrid = forwardRef(DataGridInner) as <T>(
-  props: AgGridReactProps<T> & { ref?: React.Ref<AgGridReact<T>> },
+  props: DataGridProps<T> & { ref?: React.Ref<AgGridReact<T>> },
 ) => React.ReactElement;

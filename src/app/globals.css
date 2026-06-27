@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "react-calendar-timeline/dist/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -126,5 +127,36 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer components {
+  .page-content {
+    @apply flex flex-col gap-5;
+  }
+
+  .page-intro {
+    @apply text-sm leading-relaxed text-muted-foreground;
+  }
+
+  .section-title {
+    @apply text-sm font-semibold tracking-tight;
+  }
+
+  .dashboard-timeline .rct-sidebar {
+    @apply bg-muted/35;
+  }
+
+  .dashboard-timeline .rct-sidebar .rct-sidebar-row {
+    @apply border-b border-border/60 text-xs font-medium text-muted-foreground;
+  }
+
+  .dashboard-timeline .rct-horizontal-lines .rct-hl-even,
+  .dashboard-timeline .rct-horizontal-lines .rct-hl-odd {
+    @apply border-b border-border/50;
+  }
+
+  .dashboard-timeline .rct-vertical-lines .rct-vl {
+    @apply border-l border-border/50;
   }
 }

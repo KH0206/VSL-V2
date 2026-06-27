@@ -19,7 +19,6 @@ export default async function TableEditTablePage({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Table Edit: {table}</h1>
       {error && <p className="text-sm text-destructive">{error.message}</p>}
       <TableEditGrid table={table} rows={rows ?? []} />
     </div>

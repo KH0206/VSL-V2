@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import type { AgGridReact } from "ag-grid-react";
 import { DataGrid } from "@/components/data-grid";
 import { ActionBar } from "@/components/action-bar";
 import { Button } from "@/components/ui/button";
@@ -42,12 +44,15 @@ function AddLinkDialog({
   people,
   skills,
   existingLinks,
+  open,
+  onOpenChange,
 }: {
   people: PersonOption[];
   skills: SkillOption[];
   existingLinks: PersonSkillLink[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [personId, setPersonId] = useState<string | null>(null);
   const [skillId, setSkillId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -72,7 +77,7 @@ function AddLinkDialog({
     startTransition(async () => {
       await createLink(Number(personId), Number(skillId));
       reset();
-      setOpen(false);
+      onOpenChange(false);
     });
   }
 
@@ -80,11 +85,10 @@ function AddLinkDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        setOpen(next);
+        onOpenChange(next);
         if (!next) reset();
       }}
     >
-      <Button onClick={() => setOpen(true)}>Add</Button>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Assign skill to person</DialogTitle>
@@ -146,7 +150,7 @@ function AddLinkDialog({
             variant="outline"
             onClick={() => {
               reset();
-              setOpen(false);
+              onOpenChange(false);
             }}
           >
             Quit
@@ -169,7 +173,10 @@ export function PersonSkillsView({
   people: PersonOption[];
   skills: SkillOption[];
 }) {
+  const [selectMode, setSelectMode] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const gridRef = useRef<AgGridReact<Row>>(null);
   const rows = toRows(links);
 
   function handleDelete(id: number) {
@@ -178,29 +185,83 @@ export function PersonSkillsView({
     });
   }
 
-  const columnDefs: ColDef<Row>[] = [
-    { field: "personName", headerName: "Person", flex: 1 },
-    { field: "skillName", headerName: "Skill", flex: 1 },
-    {
-      headerName: "Actions",
-      flex: 1,
-      sortable: false,
-      filter: false,
-      cellRenderer: (p: ICellRendererParams<Row>) =>
-        p.data ? (
-          <Button variant="destructive" size="sm" onClick={() => handleDelete(p.data!.id)}>
-            Delete
-          </Button>
-        ) : null,
-    },
-  ];
+  function handleDeleteSelected() {
+    const selected = gridRef.current?.api.getSelectedRows() ?? [];
+    if (selected.length === 0) return;
+
+    startTransition(async () => {
+      await Promise.all(selected.map((row) => deleteLink(row.id)));
+    });
+  }
+
+  const columnDefs = useMemo<ColDef<Row>[]>(
+    () => [
+      {
+        headerName: "",
+        width: 74,
+        maxWidth: 74,
+        pinned: "left",
+        lockPinned: true,
+        sortable: false,
+        filter: false,
+        suppressMovable: true,
+        checkboxSelection: selectMode,
+        headerCheckboxSelection: selectMode,
+        cellRenderer: (p: ICellRendererParams<Row>) =>
+          p.data ? (
+            <div className="flex items-center gap-0.5 pt-0.5">
+              <Button variant="ghost" size="icon-xs" disabled aria-label="Edit unavailable">
+                <Pencil className="size-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Delete row"
+                onClick={() => handleDelete(p.data!.id)}
+              >
+                <Trash2 className="size-3.5 text-destructive" />
+              </Button>
+            </div>
+          ) : null,
+      },
+      { field: "personName", headerName: "Person", flex: 1 },
+      { field: "skillName", headerName: "Skill", flex: 1 },
+    ],
+    [selectMode],
+  );
 
   return (
     <div className="flex flex-col gap-4">
-      <ActionBar title="Assignments">
-        <AddLinkDialog people={people} skills={skills} existingLinks={links} />
-      </ActionBar>
-      <DataGrid<Row> rowData={rows} columnDefs={columnDefs} />
+      <ActionBar
+        breadcrumbs={[
+          { label: "Home", href: "/dashboard" },
+          { label: "Person Skills" },
+        ]}
+        selectActive={selectMode}
+        onSelectToggle={() => setSelectMode((v) => !v)}
+        doItems={[
+          { label: "Delete Selected", onClick: handleDeleteSelected },
+          {
+            label: "Report Selected",
+            onClick: () => gridRef.current?.api.exportDataAsCsv({ onlySelected: true }),
+          },
+        ]}
+        onNew={() => setNewOpen(true)}
+        newLabel="New"
+      />
+      <DataGrid<Row>
+        ref={gridRef}
+        rowData={rows}
+        columnDefs={columnDefs}
+        rowSelection={selectMode ? "multiple" : "single"}
+      />
+      <AddLinkDialog
+        people={people}
+        skills={skills}
+        existingLinks={links}
+        open={newOpen}
+        onOpenChange={setNewOpen}
+      />
     </div>
   );
 }

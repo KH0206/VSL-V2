@@ -2,26 +2,46 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Home, Users, FolderKanban, BarChart3, Database, Link2, LogOut } from "lucide-react";
+import {
+  Home,
+  LayoutDashboard,
+  Users,
+  FolderKanban,
+  BarChart3,
+  Database,
+  Link2,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const items = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/dashboard-overview", label: "Dashboard", icon: LayoutDashboard },
   { href: "/users", label: "Users", icon: Users },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/person-skills", label: "Person Skills", icon: Link2 },
   { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/table-edit", label: "Table Edit", icon: Database },
+  { href: "/table-edit", label: "Edit", icon: Database },
 ];
 
 export function Sidebar({ email }: { email: string }) {
-  const [expanded, setExpanded] = useState(false);
+  const [hoverExpanded, setHoverExpanded] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const expanded = pinned || hoverExpanded;
 
   return (
     <aside
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
+      onMouseEnter={() => setHoverExpanded(true)}
+      onMouseLeave={() => !pinned && setHoverExpanded(false)}
+      onFocusCapture={() => setHoverExpanded(true)}
+      onBlurCapture={(e) => {
+        if (!pinned && !e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setHoverExpanded(false);
+        }
+      }}
       className="relative h-screen w-14 shrink-0"
     >
       <div
@@ -35,7 +55,11 @@ export function Sidebar({ email }: { email: string }) {
             <Link
               key={href}
               href={href}
-              onClick={() => setExpanded(false)}
+              onClick={() => {
+                if (!pinned) {
+                  setHoverExpanded(false);
+                }
+              }}
               className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-white hover:bg-blue-800"
             >
               <Icon className="size-5 shrink-0 text-white" />
@@ -52,6 +76,16 @@ export function Sidebar({ email }: { email: string }) {
         </nav>
 
         <div className="flex flex-col gap-2 border-t border-blue-800 p-2">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={pinned ? "Unpin sidebar" : "Pin sidebar"}
+            aria-pressed={pinned}
+            onClick={() => setPinned((value) => !value)}
+            className="self-start text-white hover:bg-blue-800 hover:text-white"
+          >
+            {pinned ? <PanelLeftClose className="size-3.5" /> : <PanelLeftOpen className="size-3.5" />}
+          </Button>
           <div
             className={cn(
               "overflow-hidden truncate px-2.5 text-xs text-blue-200 transition-all duration-150",
@@ -65,7 +99,11 @@ export function Sidebar({ email }: { email: string }) {
               type="submit"
               variant="outline"
               size="sm"
-              onClick={() => setExpanded(false)}
+              onClick={() => {
+                if (!pinned) {
+                  setHoverExpanded(false);
+                }
+              }}
               className="w-full justify-start gap-3 border-blue-200 bg-transparent px-2.5 text-white hover:bg-blue-800 hover:text-white"
             >
               <LogOut className="size-5 shrink-0 text-white" />

@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import type { AgGridReact } from "ag-grid-react";
+import { ActionBar } from "@/components/action-bar";
 import { DataGrid } from "@/components/data-grid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,8 +153,17 @@ function buildPanels(table: string, row: Row, columns: string[]): EntityPanel[] 
   ];
 }
 
-function NewRowDialog({ table, columns }: { table: string; columns: string[] }) {
-  const [open, setOpen] = useState(false);
+function NewRowDialog({
+  table,
+  columns,
+  open,
+  onOpenChange,
+}: {
+  table: string;
+  columns: string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(columns.filter((c) => !READ_ONLY_FIELDS.has(c)).map((c) => [c, ""])),
   );
@@ -165,13 +177,12 @@ function NewRowDialog({ table, columns }: { table: string; columns: string[] }) 
         if (values[field]) newValues[field] = values[field];
       }
       await createRow(table, newValues);
-      setOpen(false);
+      onOpenChange(false);
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>New row</DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New row</DialogTitle>
@@ -193,8 +204,11 @@ function NewRowDialog({ table, columns }: { table: string; columns: string[] }) 
 }
 
 export function TableEditGrid({ table, rows }: { table: string; rows: Row[] }) {
+  const [selectMode, setSelectMode] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
   const columns = getColumns(rows);
   const [, startTransition] = useTransition();
+  const gridRef = useRef<AgGridReact<Row>>(null);
 
   function handleDelete(id: number | string) {
     startTransition(async () => {
@@ -202,42 +216,98 @@ export function TableEditGrid({ table, rows }: { table: string; rows: Row[] }) {
     });
   }
 
-  const columnDefs: ColDef<Row>[] = [
-    ...columns.map((field) => ({ field, flex: 1 })),
-    {
-      headerName: "Actions",
-      flex: 1,
-      sortable: false,
-      filter: false,
-      cellRenderer: (p: ICellRendererParams<Row>) =>
-        p.data ? (
-          <div className="flex gap-2">
-            <EntityActionsMenu panels={buildPanels(table, p.data, columns)} />
-            <WhatsAppButton row={p.data} />
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => handleDelete(p.data!.id as number | string)}
-            >
-              Delete
-            </Button>
-          </div>
-        ) : null,
-    },
-  ];
+  function handleDeleteSelected() {
+    const selected = gridRef.current?.api.getSelectedRows() ?? [];
+    if (selected.length === 0) return;
+
+    startTransition(async () => {
+      await Promise.all(
+        selected
+          .filter((row) => row.id !== undefined)
+          .map((row) => deleteRow(table, row.id as number | string)),
+      );
+    });
+  }
+
+  const columnDefs = useMemo<ColDef<Row>[]>(
+    () => [
+      {
+        headerName: "",
+        width: 74,
+        maxWidth: 74,
+        pinned: "left",
+        lockPinned: true,
+        sortable: false,
+        filter: false,
+        suppressMovable: true,
+        checkboxSelection: selectMode,
+        headerCheckboxSelection: selectMode,
+        cellRenderer: (p: ICellRendererParams<Row>) =>
+          p.data ? (
+            <div className="flex items-center gap-0.5 pt-0.5">
+              <EntityActionsMenu
+                panels={buildPanels(table, p.data, columns)}
+                triggerLabel="Edit row"
+                triggerContent={<Pencil className="size-3.5" />}
+              />
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Delete row"
+                onClick={() => handleDelete(p.data!.id as number | string)}
+              >
+                <Trash2 className="size-3.5 text-destructive" />
+              </Button>
+            </div>
+          ) : null,
+      },
+      ...columns.map((field) => ({ field, flex: 1 })),
+      {
+        headerName: "Contact",
+        width: 96,
+        sortable: false,
+        filter: false,
+        cellRenderer: (p: ICellRendererParams<Row>) => (p.data ? <WhatsAppButton row={p.data} /> : null),
+      },
+    ],
+    [columns, selectMode, table],
+  );
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
-        {columns.length > 0 ? (
-          <NewRowDialog table={table} columns={columns} />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            No rows yet — columns can&apos;t be inferred until at least one row exists.
-          </p>
-        )}
-      </div>
-      <DataGrid<Row> rowData={rows} columnDefs={columnDefs} />
+      <ActionBar
+        breadcrumbs={[
+          { label: "Home", href: "/dashboard" },
+          { label: "Edit", href: "/table-edit" },
+          { label: table },
+        ]}
+        selectActive={selectMode}
+        onSelectToggle={() => setSelectMode((v) => !v)}
+        doItems={[
+          { label: "Delete Selected", onClick: handleDeleteSelected },
+          {
+            label: "Report Selected",
+            onClick: () => gridRef.current?.api.exportDataAsCsv({ onlySelected: true }),
+          },
+        ]}
+        onNew={columns.length > 0 ? () => setNewOpen(true) : undefined}
+        newLabel="New"
+      />
+      {columns.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No rows yet — columns can&apos;t be inferred until at least one row exists.
+        </p>
+      ) : null}
+      <DataGrid<Row>
+        ref={gridRef}
+        rowData={rows}
+        columnDefs={columnDefs}
+        enableFilters={table === "person"}
+        rowSelection={selectMode ? "multiple" : "single"}
+      />
+      {columns.length > 0 ? (
+        <NewRowDialog table={table} columns={columns} open={newOpen} onOpenChange={setNewOpen} />
+      ) : null}
     </div>
   );
 }

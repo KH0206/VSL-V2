@@ -27,7 +27,6 @@ export default async function PersonSkillsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Person Skills</h1>
       {error && <p className="text-sm text-destructive">{error.message}</p>}
       <PersonSkillsView
         links={(linksRes.data as unknown as PersonSkillLink[]) ?? []}
